@@ -1,3 +1,5 @@
+using Melanchall.DryWetMidi.Core;
+using Melanchall.DryWetMidi.Interaction;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -6,8 +8,7 @@ using System.IO;
 using UnityEngine.Networking;
 using System;
 using System.Numerics;
-using NAudio.Midi;
-using System.Linq;
+
 
 public class GameManager : MonoBehaviour
 {
@@ -45,23 +46,31 @@ public class GameManager : MonoBehaviour
     public Text percenthittext, normalstext, goodstext, perfectstext, missestext, ranktext, finaltext;
 
     #endregion
-
+    
     #region song manager variables
 
 
 
-    // Path to the MIDI file
-    public string filePath = "Crazy-Frog.mid";
+    public Lane[] lanes;
+    public float songDelayInSeconds = 0;
+    public float noteDelayInSeconds = 2;
 
-    // BPM (tempo) of the track
-    int bpm = 120;
-
-    // List to store the extracted note information
-    public List<float> notes = new List<float>();
-
-    public GameObject noteprefab;
+    //public int inputDelayInMilliseconds;
 
 
+    public string fileLocation;
+    public float noteTime = 5;
+    public float noteSpawnZ=150 ;
+    public float noteTapZ;
+    public float noteDespawnZ
+    {
+        get
+        {
+            return noteTapZ - (noteSpawnZ - noteTapZ);
+        }
+    }
+
+    public static MidiFile midiFile;
 
     #endregion
 
@@ -69,32 +78,10 @@ public class GameManager : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        // Load the MIDI file
-        var midi = new MidiFile(filePath);
-        // Get the ticks per quarter note (needed for timing calculations)
-        int ticksPerQuarterNote = midi.DeltaTicksPerQuarterNote;
-        // Iterate through the events in the first track
-        foreach (var evt in midi.Events[0])
-        {
-            // Look for note on events
-            if (evt.CommandCode == MidiCommandCode.NoteOn)
-            {
-                var noteOn = (NoteOnEvent)evt;
-                // Calculate the time at which the note starts (in seconds)
-                float time = (60f * noteOn.AbsoluteTime) / (bpm * ticksPerQuarterNote);
-                // Get the note name (A, B, C, etc.)
-                
-                // Add the note name and time to the list
-                notes.Add((time));
-            }
-        }
-
-
-
         instance = this;
         scoreText.text = "0";
         currentMultiplier = 1 ;
-        
+        ReadFromFile();
     }
 
     // Update is called once per frame
@@ -128,10 +115,10 @@ public class GameManager : MonoBehaviour
                 missestext.text = missedhits.ToString();
 
                 float totalnotes=0;
-                //foreach (Lane lane in lanes)
-                //{
-                //    totalnotes += lane.spawnIndex;
-                //}
+                foreach (Lane lane in lanes)
+                {
+                    totalnotes += lane.spawnIndex;
+                }
 
                 float totalhits = normalhits + goodhits + perfecthits;
                 float percenthit = totalhits / totalnotes * 100f;
@@ -161,12 +148,7 @@ public class GameManager : MonoBehaviour
             }
              
         }
-        foreach (var note in notes)
-        {
-            if (music.time == note)
-                Instantiate(noteprefab);
-        }
-
+        
     }
     #region score manager functions
     public void NoteHit()
@@ -225,7 +207,30 @@ public class GameManager : MonoBehaviour
 
     #region song manager
 
-  
-    #endregion
+    private void ReadFromFile()
+    {
+        midiFile = MidiFile.Read(Application.streamingAssetsPath + "/" + fileLocation);
 
+        GetDataFromMidi();
+    }
+    public void GetDataFromMidi()
+    {
+        var notes = midiFile.GetNotes();
+        var array = new Melanchall.DryWetMidi.Interaction.Note[notes.Count];
+        notes.CopyTo(array, 0);
+
+        foreach (var lane in lanes) 
+            lane.SetTimeStamps(array);
+         
+    }
+
+    
+    
+    public static double GetAudioSourceTime()
+    {
+        
+        return (double)instance.music.timeSamples / instance.music.clip.frequency;
+    }
+
+    #endregion
 }
